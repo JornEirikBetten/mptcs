@@ -3,7 +3,7 @@
 #SBATCH --account=jorneirik 
 #SBATCH --job-name=cost_quality
 #SBATCH --output=cost_quality.log   
-#SBATCH --partition=dgx2q
+#SBATCH --partition=defq
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH -c 6          #  På g001 bør en berense seg til 96 / 16 cores per GPU
