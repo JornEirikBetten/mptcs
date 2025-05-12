@@ -1,6 +1,6 @@
 import jax.numpy as jnp  
 from typing import Callable
-from minimal_pats.simulators import Trajectory
+from mptcs.simulators import Trajectory
 
 
 def build_step_based_failure_criterion(step_threshold: int) -> Callable: 

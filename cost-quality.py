@@ -12,17 +12,17 @@ import sys
 from typing import Dict, Any, Tuple, Callable, Optional, List, Union, Sequence, NamedTuple
 #from ga_utils_mdpfuzz import mutate_states, MUTATORS, OBSERVE_FN
 
-import minimal_pats.candidate_generation as candidate_generation 
-import minimal_pats.simulators as simulators 
-import minimal_pats.forward_fns as forward_fns 
-import minimal_pats.param_loader as param_loader 
-import minimal_pats.failure_criteria as failure_criteria 
-import minimal_pats.test_case_selection as test_case_selection 
-import minimal_pats.utils as utils 
-import minimal_pats.converters as converters 
-from minimal_pats.evaluation import evaluation 
+import mptcs.candidate_generation as candidate_generation 
+import mptcs.simulators as simulators 
+import mptcs.forward_fns as forward_fns 
+import mptcs.param_loader as param_loader 
+import mptcs.failure_criteria as failure_criteria 
+import mptcs.test_case_selection as test_case_selection 
+import mptcs.utils as utils 
+import mptcs.converters as converters 
+from mptcs.evaluation import evaluation 
 from dataclasses import dataclass 
-from minimal_pats.data_handler import batch_test_cases
+from mptcs.data_handler import batch_test_cases
 import pandas as pd 
 
 from qdax_modified.core.containers.mapelites_repertoire import MapElitesRepertoire, compute_euclidean_centroids
@@ -43,9 +43,9 @@ FAILURE_THRESHOLD = 10
 SIMULATION_STEPS = 11 
 CENTROIDS_SHAPE = (centroids_dim, centroids_dim)
 NUM_EVAL_POLICIES = 20
-SELECTION_SIZE = 500
+SELECTION_SIZE = 300
 NUM_GENERATIONS = 500
-NUM_INITIAL_STATES = 500
+NUM_INITIAL_STATES = 300
 EVALUATION_INTERVAL = 10
 # Environment 
 env_fn = pgx.make(env_name) 

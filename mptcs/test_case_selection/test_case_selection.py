@@ -1,8 +1,8 @@
 import jax 
 import jax.numpy as jnp  
 from typing import Callable, List
-from minimal_pats.simulators import Trajectory
-from minimal_pats.candidate_generation import TestCase
+from mptcs.simulators import Trajectory
+from mptcs.candidate_generation import TestCase
 import haiku as hk 
 import qdax_modified 
 
