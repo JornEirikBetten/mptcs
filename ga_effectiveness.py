@@ -10,19 +10,19 @@ import os
 import sys 
 
 from typing import Dict, Any, Tuple, Callable, Optional, List, Union, Sequence, NamedTuple
+#from ga_utils_mdpfuzz import mutate_states, MUTATORS, OBSERVE_FN
 
-
-import minimal_pats.candidate_generation as candidate_generation 
-import minimal_pats.simulators as simulators 
-import minimal_pats.forward_fns as forward_fns 
-import minimal_pats.param_loader as param_loader 
-import minimal_pats.failure_criteria as failure_criteria 
-import minimal_pats.test_case_selection as test_case_selection 
-import minimal_pats.utils as utils 
-import minimal_pats.converters as converters 
-from minimal_pats.evaluation import evaluation 
+import mptcs.candidate_generation as candidate_generation 
+import mptcs.simulators as simulators 
+import mptcs.forward_fns as forward_fns 
+import mptcs.param_loader as param_loader 
+import mptcs.failure_criteria as failure_criteria 
+import mptcs.test_case_selection as test_case_selection 
+import mptcs.utils as utils 
+import mptcs.converters as converters 
+from mptcs.evaluation import evaluation 
 from dataclasses import dataclass 
-from minimal_pats.data_handler import batch_test_cases
+from mptcs.data_handler import batch_test_cases
 import pandas as pd 
 
 from qdax_modified.core.containers.mapelites_repertoire import MapElitesRepertoire, compute_euclidean_centroids
@@ -36,17 +36,17 @@ class TestCase(NamedTuple):
 env_name = sys.argv[1]
 centroids_dim = int(sys.argv[2])
 num_policies = int(sys.argv[3])
-experiment_number = int(sys.argv[4])
+experiment_name = int(sys.argv[4])
 
 # Configuration 
 FAILURE_THRESHOLD = 10 
 SIMULATION_STEPS = 11 
 CENTROIDS_SHAPE = (centroids_dim, centroids_dim)
 NUM_EVAL_POLICIES = 20
-SELECTION_SIZE = 150
+SELECTION_SIZE = 200
 NUM_GENERATIONS = 1000
 NUM_INITIAL_STATES = 200
-EVALUATION_INTERVAL = 50
+EVALUATION_INTERVAL = 100
 # Environment 
 env_fn = pgx.make(env_name) 
 
@@ -127,8 +127,6 @@ test_suite_centroids = compute_euclidean_centroids(
 )
 
 
-
-
 def build_sample_from_test_suite(selection_size, vec2state): 
     def sample_from_test_suite(test_suite, key): 
         valid_indices = jnp.where(test_suite.fitnesses != -jnp.inf) 
@@ -194,17 +192,19 @@ sample_from_test_suite = build_sample_from_test_suite(SELECTION_SIZE, vec2state)
 next_generation = build_next_generation_fn(sample_from_test_suite, mutate_test_case_fn)
 
 # Creating empty test suites for test suites using 1 through num_policies policies 
-test_suites = []
-for policy_number in range(num_policies): 
-    test_suite = MapElitesRepertoire.init_default(
-        genotype=reference_vector, 
-        centroids=test_suite_centroids, 
-        rng=jnp.zeros_like(jax.random.PRNGKey(123123))
-    )
-    test_suites.append(test_suite)
+single_policy_test_suite = MapElitesRepertoire.init_default(
+    genotype=reference_vector, 
+    centroids=test_suite_centroids, 
+    rng=jnp.zeros_like(jax.random.PRNGKey(123123))
+)
 
+multi_policy_test_suite = MapElitesRepertoire.init_default(
+    genotype=reference_vector, 
+    centroids=test_suite_centroids, 
+    rng=jnp.zeros_like(jax.random.PRNGKey(123123))
+)
 
-key = jax.random.PRNGKey(123123 * experiment_number)
+key = jax.random.PRNGKey(123123 * experiment_name)
 key, _init_key = jax.random.split(key) 
 init_keys = jax.random.split(_init_key, NUM_INITIAL_STATES)
 states = jax.vmap(env_fn.init)(init_keys)
@@ -229,9 +229,11 @@ run_data = {
 }
     
 extraction_data = ["found_failures", "mean_tcp_score", "mean_failure_rate", "qd_tcp_score", "qd_failure_rate", "added_to_archive", "replaced_elite", "num_valid_test_cases", "num_sim_steps", "not_confirmed_solvable"]
-for number_of_policies in range(1, num_policies+1):  
+names = ["single-policy", "multi-policy"]
+
+for name in names:  
     for data in extraction_data: 
-        run_data[str(number_of_policies) + "_" + data] = []
+        run_data[name + "_" + data] = []
 
 # for key, value in run_data.items(): 
 #     print(key)
@@ -242,12 +244,12 @@ for number_of_policies in range(1, num_policies+1):
 #     print("Partial shape: ", partial_trajectories.state.observation.shape)
 #     tcp_scores, descriptors, solvability = tcp_scorer(partial_trajectories)
 
-path_to_results = os.getcwd() + "/results/cost-quality/" + env_name + f"/experiment_{experiment_number}/"
+path_to_results = os.getcwd() + "/results/effectiveness/" + env_name + "/experiment_"+ str(experiment_name) + "/"
 if not os.path.exists(path_to_results): 
     os.makedirs(path_to_results)
 
 
-def collect_data(data_dictionary, test_suite, trajectories, number_of_policies, generation, not_confirmed_solvable, added_to_archive, replaced_elite, found_failures):
+def collect_data(data_dictionary, test_suite, trajectories, name, generation, not_confirmed_solvable, added_to_archive, replaced_elite, found_failures):
     # If it is an evaluation generation 
     if generation % EVALUATION_INTERVAL == 0 and jnp.sum(test_suite.fitnesses > 0) > 0: 
         # Empty validation archive 
@@ -259,7 +261,7 @@ def collect_data(data_dictionary, test_suite, trajectories, number_of_policies, 
         saving_path = path_to_results + f"generation_{generation}/"
         if not os.path.exists(saving_path): 
             os.makedirs(saving_path)
-        saving_path_test_suite = saving_path + f"test_suite_{number_of_policies}/"
+        saving_path_test_suite = saving_path + f"test_suite_{name}/"
         if not os.path.exists(saving_path_test_suite): 
             os.makedirs(saving_path_test_suite)
         test_suite.save(saving_path_test_suite)
@@ -267,75 +269,63 @@ def collect_data(data_dictionary, test_suite, trajectories, number_of_policies, 
         validation_archive = evaluate_test_suite(test_suite, test_params_stacked, empty_validation_archive)
         summed_failure_rate = jnp.sum(validation_archive.fitnesses[validation_archive.fitnesses > 0])
         mean_failure_rate = summed_failure_rate / jnp.sum(test_suite.fitnesses > 0)
-        data_dictionary[str(number_of_policies) + "_mean_failure_rate"].append(mean_failure_rate)
-        data_dictionary[str(number_of_policies) + "_qd_failure_rate"].append(summed_failure_rate)
+        data_dictionary[name + "_mean_failure_rate"].append(mean_failure_rate)
+        data_dictionary[name + "_qd_failure_rate"].append(summed_failure_rate)
         utils.plot_archive(test_suite, 
                            generation, 
-                           saving_path + f"test_suite_{number_of_policies}.pdf", 
+                           saving_path + f"test_suite_{name}.pdf", 
                            "test case priority", xlabel, ylabel, xtick_labels, ytick_labels, ticks, shape=CENTROIDS_SHAPE)
         utils.plot_archive(validation_archive, 
                            generation, 
-                           saving_path + f"validation_{number_of_policies}.pdf", 
+                           saving_path + f"validation_{name}.pdf", 
                            "failure rate", xlabel, ylabel, xtick_labels, ytick_labels, ticks, shape=CENTROIDS_SHAPE)
     else: 
-        data_dictionary[str(number_of_policies) + "_mean_failure_rate"].append(-1)
-        data_dictionary[str(number_of_policies) + "_qd_failure_rate"].append(-1)
+        data_dictionary[name + "_mean_failure_rate"].append(-1)
+        data_dictionary[name + "_qd_failure_rate"].append(-1)
         
     # Test suite metrics collection 
     num_steps = jnp.sum(~trajectories.state.terminated) 
-    data_dictionary[str(number_of_policies) + "_num_sim_steps"].append(num_steps)
-    data_dictionary[str(number_of_policies) + "_found_failures"].append(found_failures)
-    data_dictionary[str(number_of_policies) + "_not_confirmed_solvable"].append(not_confirmed_solvable)
-    data_dictionary[str(number_of_policies) + "_added_to_archive"].append(added_to_archive)
-    data_dictionary[str(number_of_policies) + "_replaced_elite"].append(replaced_elite)
+    data_dictionary[name + "_num_sim_steps"].append(num_steps)
+    data_dictionary[name + "_found_failures"].append(found_failures)
+    data_dictionary[name + "_not_confirmed_solvable"].append(not_confirmed_solvable)
+    data_dictionary[name + "_added_to_archive"].append(added_to_archive)
+    data_dictionary[name + "_replaced_elite"].append(replaced_elite)
     num_valid_test_cases = jnp.sum(test_suite.fitnesses > 0)
-    data_dictionary[str(number_of_policies) + "_num_valid_test_cases"].append(num_valid_test_cases)
+    data_dictionary[name + "_num_valid_test_cases"].append(num_valid_test_cases)
     mean_tcp_score = jnp.mean(test_suite.fitnesses[test_suite.fitnesses > 0])
-    data_dictionary[str(number_of_policies) + "_mean_tcp_score"].append(mean_tcp_score)
+    data_dictionary[name + "_mean_tcp_score"].append(mean_tcp_score)
     qd_tcp_score = jnp.sum(test_suite.fitnesses[test_suite.fitnesses > 0])
-    data_dictionary[str(number_of_policies) + "_qd_tcp_score"].append(qd_tcp_score)
+    data_dictionary[name + "_qd_tcp_score"].append(qd_tcp_score)
     return data_dictionary
     
-candidate_storage = [candidates for i in range(num_policies)]
-
+#candidate_storage = [candidates for i in range(num_policies)]
+previous_candidates = candidates
 
 for generation in range(1, NUM_GENERATIONS+1):
     print(f"Generation {generation} of {NUM_GENERATIONS}")
     run_data["generation"].append(generation)
     key, generation_key = jax.random.split(key)
     # Single-policy test suite collection 
-    previous_candidates = candidate_storage[0] 
-    candidates = next_generation(test_suites[0], previous_candidates, generation_key)
+    #previous_candidates = candidate_storage[0] 
+    candidates = next_generation(multi_policy_test_suite, previous_candidates, generation_key)
     candidates_genotypes = state2vec(candidates.state)
-    candidate_storage[0] = candidates
+    previous_candidates = candidates
+    #candidate_storage[0] = candidates
     trajs = test_case_simulator(params_stacked, candidates)
     # Getting descriptors and solvability 
-    _, descriptors, solvability = tcp_scorer(trajs)
+    tcp_scores, descriptors, solvability = tcp_scorer(trajs)
     single_policy_trajectories = extract_partial_trajectories(trajs, 1) 
     failures = jnp.sum(single_policy_trajectories.state.terminated, axis=1) > 0 
     single_policy_score = (failures * solvability).reshape(-1) 
     not_confirmed_solvable = jnp.sum(~solvability)
-    test_suite, found_failures, added_to_archive, replaced_elite = add_to_archive(test_suites[0], candidates_genotypes, descriptors, single_policy_score, candidates.key)
-    test_suites[0] = test_suite
-    run_data = collect_data(run_data, test_suite, single_policy_trajectories, 1, generation, not_confirmed_solvable, added_to_archive, replaced_elite, found_failures)
+    test_suite, found_failures, added_to_archive, replaced_elite = add_to_archive(single_policy_test_suite, candidates_genotypes, descriptors, single_policy_score, candidates.key)
+    single_policy_test_suite = test_suite
+    run_data = collect_data(run_data, single_policy_test_suite, single_policy_trajectories, "single-policy", generation, not_confirmed_solvable, added_to_archive, replaced_elite, found_failures)
+    test_suite, found_failures, added_to_archive, replaced_elite = add_to_archive(multi_policy_test_suite, candidates_genotypes, descriptors, tcp_scores, candidates.key)
+    multi_policy_test_suite = test_suite
+    run_data = collect_data(run_data, multi_policy_test_suite, trajs, "multi-policy", generation, not_confirmed_solvable, added_to_archive, replaced_elite, found_failures)
     
-    # Multi-policy test suite collection 
-    for policy_number in range(2, num_policies+1): 
-        test_suite = test_suites[policy_number-1]
-        previous_candidates = candidate_storage[policy_number-1]
-        candidates = next_generation(test_suite, previous_candidates, generation_key)
-        candidates_genotypes = state2vec(candidates.state)
-        candidate_storage[policy_number-1] = candidates
-        trajs = test_case_simulator(params_stacked, candidates)
-        # Getting descriptors and solvability 
-        _, descriptors, solvability = tcp_scorer(trajs)
-        multi_policy_trajectories = extract_partial_trajectories(trajs, policy_number)
-        tcp_scores, _, _ = tcp_scorer(multi_policy_trajectories)
-        test_suite, found_failures, added_to_archive, replaced_elite = add_to_archive(test_suite, candidates_genotypes, descriptors, tcp_scores, candidates.key)
-        test_suites[policy_number-1] = test_suite
-        not_confirmed_solvable = jnp.sum(~solvability)
-        run_data = collect_data(run_data, test_suite, multi_policy_trajectories, policy_number, generation, not_confirmed_solvable, added_to_archive, replaced_elite, found_failures)
-
+    
 save_path = path_to_results  
 df = pd.DataFrame(run_data)
 df.to_csv(save_path + f"run_data.csv", index=False)
