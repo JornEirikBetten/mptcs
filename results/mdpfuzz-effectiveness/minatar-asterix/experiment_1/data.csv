@@ -1,0 +1,2 @@
+,generated_failures,confirmed_solvable_ratio,qd_test_case_priority_score,qd_failure_rate_mp_test_suite,qd_failure_rate_sp_test_suite,total_number_of_simulation_steps,test_cases_in_mp_test_suite,test_cases_in_sp_test_suite,mean_failure_rate_mp_test_suite,mean_failure_rate_sp_test_suite
+0,2817,0.48384807,254.0,229.85,196.40001,50631647,543,543,0.46622717,0.41002092
