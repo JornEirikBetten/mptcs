@@ -144,6 +144,10 @@ def build_pgx_simulator_of_test_case(env_fn: Callable, forward_pass: Callable, m
     """
     def simulator(params: hk.Params, test_case: TestCase) -> Trajectory: 
         step_fn = jax.jit(jax.vmap(env_fn.step))
+        def sample_action(logits: chex.Array) -> chex.Array: 
+            probabilities = jax.nn.softmax(logits*0.5, axis=-1)
+            return jax.random.choice(jax.random.PRNGKey(123), jnp.arange(logits.shape[-1]), p=probabilities)
+        
         def cond_fn(tup: Tuple[pgx.State, jax.random.PRNGKey, int, pgx.State, chex.Array, chex.Array, float, chex.Array]) -> bool: 
             state, key, step, states, actions, action_distributions, rewards, rngs = tup
             return jnp.logical_and(~(state.terminated).all(), step <= max_steps)
@@ -152,6 +156,8 @@ def build_pgx_simulator_of_test_case(env_fn: Callable, forward_pass: Callable, m
             state, key, step, states, actions, action_distributions, rewards, rngs = tup
             logits, values = forward_pass.apply(params, state.observation)
             # Deterministic action choice 
+            #action = jax.vmap(sample_action)(logits)
+            #action = jax.random.choice(jax.random.PRNGKey(123), jnp.arange(logits.shape[-1]), shape=(logits.shape[0],))
             action = logits.argmax(axis=-1)
             rngs = rngs.at[step].set(key) 
             # Using test case key to sample next state 

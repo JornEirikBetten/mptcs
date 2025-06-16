@@ -68,7 +68,8 @@ def build_tcp_scorer_on_trajectories(failure_criterion: Callable) -> Callable:
         # Concatenate descriptors into behavioral descriptor vectors 
         descriptors = jnp.array([observation_variance, policy_uncertainty]).T
         return test_case_priority, descriptors, solvability
-    return tcp_scoring_trajectories
+    return tcp_scoring_trajectories 
+
 
 def build_pats_candidate_evaluator(batched_simulator: Callable, failure_criterion: Callable):
     # Test case priority measure 

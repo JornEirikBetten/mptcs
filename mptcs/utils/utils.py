@@ -90,21 +90,40 @@ def plot_test_case_trajectory(trajectory, save_path, action_mapping):
             numerical_state = jnp.zeros((observation.shape[-3],observation.shape[-2])) 
         else: 
             numerical_state = np.amax(observation * np.reshape(np.arange(observation.shape[-1]) + 1, (1, 1, -1)), 2) + 0.5 
+        for spine in ax.spines.values():
+            spine.set_color('white')
         ax.imshow(numerical_state, cmap=cmap, norm=norm)
         ax.set_xticks([])
         ax.set_yticks([])
         return 0     
+    
+    # Plot only initial state 
+    fig = plt.figure() 
+    ax = plt.gca() 
+    observation = trajectory.state.observation[0, 0].squeeze(axis=0)
+    #print(observation.shape)
+    visualize_state(observation, ax, 0, 0, 0, 1)
+    savepath = save_path.replace(".pdf", "_initial_state.png")
+    plt.savefig(savepath, format="png", bbox_inches="tight")
+    plt.close(fig)
+    #return 0 
+    # Extract initial state 
+    initial_state = jax.tree.map(lambda x: x[0], trajectory) 
+    
+    
     for i in range(trajectory.state.observation.shape[0]):
-        save_path_ = save_path.replace(".pdf", f"_policy_{i+1}.pdf")
+        save_path_ = save_path.replace(".pdf", f"_policy_{i+1}.png")
         subtraj = jax.tree.map(lambda x: x[i], trajectory)
-        fig, axs = plt.subplots(nrows=1, ncols=lengths, figsize=(lengths + 1, 1))
+        fig, axs = plt.subplots(nrows=1, ncols=lengths)
+        axs
         for i in range(lengths): 
             #for j in range(num_runs): 
             observation = subtraj.state.observation[i].squeeze(axis=0)
             action = int(subtraj.action[i].squeeze(axis=0))
             terminated = subtraj.state.terminated[i]
             visualize_state(observation, axs[i], i, action, terminated, 1)
+        
         plt.subplots_adjust(wspace=0, hspace=0)
-        plt.savefig(save_path_, format="pdf", bbox_inches="tight")
+        plt.savefig(save_path_, format="png", bbox_inches="tight")
         plt.close(fig)
     return 0 

@@ -170,7 +170,8 @@ def build_mdpfuzz_candidate_generator(
     num_samples: int, 
     num_iterations: int, 
     total_number_of_simulation_steps: int,
-    max_corpus_size: int
+    max_corpus_size: int, 
+    target_number_of_failures: int
 ) -> Callable: 
     """
     Builds a candidate generation function where the candidates are generated through the MPDFuzz algorithm. 
@@ -305,6 +306,10 @@ def build_mdpfuzz_candidate_generator(
             else: 
                 print("No failures in iteration ", j + 1)
                 num_tcs.append(0)
+                
+            total_failures = jnp.sum(jnp.array(num_tcs))
+            if total_failures > target_number_of_failures:
+                break
         all_failures = jax.tree.map(lambda *x: jnp.concatenate(x, axis=0), *all_failures)
         run_info = {
             "found_tcs": num_tcs,
