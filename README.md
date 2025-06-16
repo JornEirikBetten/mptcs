@@ -37,4 +37,7 @@ After all executions have been run, evaluate the diversity by running of the tes
 ```
 python RQ3-evaluate-diversity.py
 ```
-which saves the results to a `results.csv` file in `results/diversity/`. 
+which saves the results to a `results.csv` file in `results/diversity/`. To look at results: 
+```
+python RQ3-diversity-analysis.py
+```
